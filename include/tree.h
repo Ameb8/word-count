@@ -6,9 +6,10 @@
 typedef struct Tree Tree;
 
 Tree* tree_create(int (*compare)(const void*, const void*));
-void tree_insert(Tree* tree, void* val, size_t size);
-void tree_print(Tree* tree, void (*print)(const void*));
-unsigned long long tree_size(Tree* tree);
-unsigned long long tree_unique(Tree* tree);
+char tree_set(Tree* tree, void* key, size_t key_size, int (*set_val)(void**, size_t*));
+void tree_print(Tree* tree, void (*print)(const void*, const void*, const size_t, const size_t));
+//unsigned long long tree_size(Tree* tree);
+//unsigned long long tree_unique(Tree* tree);
+//void tree_write(const Tree* tree, const char* filename);
 
 #endif
