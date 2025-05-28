@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <string.h>
+#include <stdint.h>
 #include "../include/tree.h"
 
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
@@ -17,7 +18,7 @@ typedef struct Node {
     size_t val_size;
 
     // Tree structure data
-    unsigned long long height;
+    uint8_t height;
     Node* left;
     Node* right;
 } Node;
@@ -26,9 +27,16 @@ typedef struct Node {
 typedef struct Tree {
     Node* root; // Root of tree
     int (*compare)(const void*, const void*); // Comparison function
-    unsigned long long size; // Number of items in tree
-    unsigned long long num_nodes; // Number of unique items in tre
+    uint32_t size; // Number of items in tree
+    uint8_t max_height;
 } Tree;
+
+
+typedef struct TreeIter {
+    Node** node_stack;
+    uint8_t stack_size;
+    uint8_t stack_capacity;
+} TreeIter;
 
 
 Node* rotate_left(Node* node) {
@@ -104,8 +112,8 @@ Node* balance(Node* node) {
         return NULL;
 
     // Update height
-    unsigned long long left_height = node->left ? node->left->height : 0;
-    unsigned long long right_height = node->right ? node->right->height : 0;
+    uint8_t left_height = node->left ? node->left->height : 0;
+    uint8_t right_height = node->right ? node->right->height : 0;
     node->height = 1 + MAX(left_height, right_height);
 
     // Calculate balance factor
@@ -181,18 +189,18 @@ Tree* tree_create(int (*compare)(const void*, const void*)) {
     tree->root = NULL;
     tree->compare = compare;
     tree->size = 0;
-    tree->num_nodes = 0;
+    tree->max_height = 0;
 
     return tree;
 }
 
 
-char node_set(Node* node, const void* key, const size_t key_size, int(*set_val)(void**, size_t*), int (*compare)(const void*, const void*)) {
-    int cmp = compare(key, node->key); 
+char node_set(Node* node, const void* key, const size_t key_size, int(*set_val)(void**, size_t*), Tree* tree) {
+    int cmp = tree->compare(key, node->key); 
 
     if(cmp < 0) { // Search left subtree
         if(node->left) {// Continue search
-            if(node_set(node->left, key, key_size, set_val, compare)) {
+            if(node_set(node->left, key, key_size, set_val, tree)) {
                 // New node created
                 node->left = balance(node->left);
                 return 1;
@@ -204,10 +212,15 @@ char node_set(Node* node, const void* key, const size_t key_size, int(*set_val)(
         // Create new node as left child
         node->left = node_create(key, NULL, key_size, 0); // Create new node
         set_val(&node->left->val, &node->left->val_size); // Allow caller to set val
+
+        //Increment tree height if necessary
+        if(node->height == tree->max_height)
+            tree->max_height++;
+
         return 1;
     } else if(cmp > 0) { // Search right subtree
         if(node->right) {// Continue search
-            if(node_set(node->right, key, key_size, set_val, compare)) {
+            if(node_set(node->right, key, key_size, set_val, tree)) {
                 // New node created
                 node->right = balance(node->right);
                 return 1;
@@ -219,6 +232,11 @@ char node_set(Node* node, const void* key, const size_t key_size, int(*set_val)(
         // Create new node as right child
         node->right = node_create(key, NULL, key_size, 0); // Create new node
         set_val(&node->right->val, &node->right->val_size); // Allow caller to set val
+
+        //Increment tree height if necessary
+        if(node->height == tree->max_height)
+            tree->max_height++;
+
         return 1;
     } else { // key found
         set_val(&node->val, &node->val_size); // Update value
@@ -235,12 +253,13 @@ char tree_set(Tree* tree, const void* key, const size_t key_size, int (*set_val)
         // Set root node
         tree->root = node_create(key, NULL, key_size, 0);
         set_val(&tree->root->val, &tree->root->val_size);
+        tree->size++;
         
         return 0;
     }
 
     
-    if(node_set(tree->root, key, key_size, set_val, tree->compare)) {
+    if(node_set(tree->root, key, key_size, set_val, tree)) {
         tree->size++;
         return 0;
     }
@@ -254,6 +273,11 @@ void node_print(Node* node, void (*print)(const void*, const void*, const size_t
         return;
 
     node_print(node->left, print); // Search left
+
+    #ifdef DBG
+    printf("Node Height: %llu", node->height);
+    #endif
+
     print(node->key, node->val, node->key_size, node->val_size); // Print val using passed function
     node_print(node->right, print); // Search right
 }
@@ -264,45 +288,151 @@ void tree_print(Tree* tree, void (*print)(const void*, const void*, const size_t
     
     node_print(tree->root, print); // Print tree
 }
-/*
-void node_write(FILE *fp, Node *node) {
-    if(!node) { // Node null
-        //Mark as null
-        char is_null = 0;
-        fwrite(&is_null, 1, 1, fp);
+
+void node_free(Node* node) {
+    if(node == NULL) // Ensure node is not null 
         return;
-    }
 
-    char is_null = 1;
-    fwrite(&is_null, 1, 1, fp);
+    // Recursively free children
+    node_free(node->left);
+    node_free(node->right);
 
-    // Write node data
-    fwrite(&node->data_size, sizeof(size_t), 1, fp);
-    fwrite(node->val, node->data_size, 1, fp);
-    fwrite(&node->count, sizeof(unsigned long long), 1, fp);
-    fwrite(&node->height, sizeof(unsigned long long), 1, fp);
+    // Deallocate memory for key and value
+    if(node->key)
+        free(node->key);
+    if(node->val)
+        free(node->val);
 
-    // Recursively write left and right
-    node_write(fp, node->left);
-    node_write(fp, node->right);
+    // Deallocate node struct
+    free(node);
+}
+
+void tree_free(Tree* tree) {
+    if(!tree) // Ensure tree is not null
+        return;
+
+    if(tree->root) // Deallocate all nodes
+        node_free(tree->root);
+    
+    // Deallocate tree
+    free(tree);
 }
 
 
-void tree_write(const Tree* tree, const char* filename) {
-    FILE *fp = fopen(filename, "wb"); // Open file
-    if(!fp) { // File open failed
-        printf("Failed to open %s\n", filename);
+void tree_iter_grow_stack(TreeIter* tree_iter) {
+    if(!tree_iter) // Ensure non-null input
+        return; 
+
+    uint8_t new_capacity; // Nex capacity for iterator stack
+
+    // Calculate new capacity
+    if((uint16_t)tree_iter->stack_capacity + (tree_iter->stack_capacity / 2) > UINT8_MAX) // Check for possible overflow
+        new_capacity = UINT8_MAX; // Set stack to max size
+    else // Double current stack size
+        new_capacity = tree_iter->stack_capacity + (tree_iter->stack_capacity / 2);
+
+    // Allocate memory for new stack
+    Node** new_stack = malloc(new_capacity * sizeof(Node*));
+
+    if(!new_stack) // Handle allocation failure
         return;
-    }
 
-    // Write basic tree metadata (size, num_nodes)
-    fwrite(&tree->size, sizeof(unsigned long long), 1, fp);
-    fwrite(&tree->num_nodes, sizeof(unsigned long long), 1, fp);
+    // Copy old stack to new and free
+    memcpy(new_stack, tree_iter->node_stack, tree_iter->stack_size * sizeof(Node*));
+    free(tree_iter->node_stack);  
 
-    // Recursively write root node
-    node_write(fp, tree->root);
-
-    fclose(fp); // Close file
+    // Update iterator fields
+    tree_iter->node_stack = new_stack;
+    tree_iter->stack_capacity = new_capacity;
 }
 
-*/
+void tree_iter_push_left(TreeIter* tree_iter, Node* node) {
+    Node* temp = node; // Traversal node
+
+    while(temp) { // Iterate through node and all left children
+        // Grow stack if necessary
+        if(tree_iter->stack_size == tree_iter->stack_capacity)
+            tree_iter_grow_stack(tree_iter);
+
+        // Push to stack
+        tree_iter->node_stack[tree_iter->stack_size++] = temp;
+        temp = temp->left;
+    }
+}
+
+TreeIter* tree_iter_create(Tree* tree) {
+    if(!tree) // Ensure non-null input
+        return NULL;
+
+    // Allocate memory for iterator,
+    TreeIter* tree_iter = malloc(sizeof(TreeIter));
+
+    if(!tree_iter) // Handle allocation failure
+        return NULL;
+
+    // Allocate memory for node stack
+    tree_iter->node_stack = malloc(tree->max_height * sizeof(Node*));
+
+    if(!tree_iter->node_stack) { // Handle allocation failure
+        free(tree_iter); // Deallocate iterator memory
+        return NULL;
+    }
+
+    // Initialize stack size and capacity
+    tree_iter->stack_size = 0;
+    tree_iter->stack_capacity = tree->max_height;
+
+    // Push leftmost nodes to stack
+    tree_iter_push_left(tree_iter, tree->root);
+
+    return tree_iter;
+}
+
+char tree_iter_has_next(TreeIter* tree_iter) {
+    if(!tree_iter) // Ensure non-null input
+        return 0;
+
+    if(tree_iter->stack_size < 1) // Check if stack is empty
+        return 0; // No nodes left
+
+    return 1; // Next node available
+}
+
+
+char tree_iter_next(TreeIter* tree_iter, void** key, size_t* key_size, void** val, size_t* val_size) {
+    // Ensure non-null inputs
+    if(!tree_iter || !key || !key_size || !val || !val_size)
+        return 0;
+    
+    if(tree_iter->stack_size < 1)
+        return 0;
+
+    // Get next node
+    Node* next = tree_iter->node_stack[--tree_iter->stack_size];
+
+    // Set pointer arguments to node's key and value
+    *key = next->key;
+    *key_size = next->key_size;
+    *val = next->val;
+    *val_size = next->val_size;
+
+    // Push right child and it's leftmost children to stack
+    if(next->right)
+        tree_iter_push_left(tree_iter, next->right);
+
+    return 1;
+}
+
+
+void tree_iter_free(TreeIter* tree_iter) {
+    if(!tree_iter) // Ensure non-null input
+        return;
+
+    // Deallocate stack memory
+    if(tree_iter->node_stack)
+        free(tree_iter->node_stack);
+
+    // Deallocate iterator memory
+    free(tree_iter);
+}
+
