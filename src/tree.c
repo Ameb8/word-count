@@ -8,35 +8,35 @@
 
 typedef struct Node Node;
 
-typedef struct Node {
-    // Node key
-    void* key;
-    size_t key_size;
+    typedef struct Node {
+        // Node key
+        void* key;
+        size_t key_size;
 
-    // Node value
-    void* val;
-    size_t val_size;
+        // Node value
+        void* val;
+        size_t val_size;
 
-    // Tree structure data
-    uint8_t height;
-    Node* left;
-    Node* right;
-} Node;
-
-
-typedef struct Tree {
-    Node* root; // Root of tree
-    int (*compare)(const void*, const void*); // Comparison function
-    uint32_t size; // Number of items in tree
-    uint8_t max_height;
-} Tree;
+        // Tree structure data
+        uint8_t height;
+        Node* left;
+        Node* right;
+    } Node;
 
 
-typedef struct TreeIter {
-    Node** node_stack;
-    uint8_t stack_size;
-    uint8_t stack_capacity;
-} TreeIter;
+    typedef struct Tree {
+        Node* root; // Root of tree
+        int (*compare)(const void*, const void*); // Comparison function
+        uint32_t size; // Number of items in tree
+        uint8_t max_height;
+    } Tree;
+
+
+    typedef struct TreeIter {
+        Node** node_stack;
+        uint8_t stack_size;
+        uint8_t stack_capacity;
+    } TreeIter;
 
 
 Node* rotate_left(Node* node) {
@@ -401,7 +401,7 @@ char tree_iter_has_next(TreeIter* tree_iter) {
 
 char tree_iter_next(TreeIter* tree_iter, void** key, size_t* key_size, void** val, size_t* val_size) {
     // Ensure non-null inputs
-    if(!tree_iter || !key || !key_size || !val || !val_size)
+    if(!tree_iter || !key || !val)
         return 0;
     
     if(tree_iter->stack_size < 1)

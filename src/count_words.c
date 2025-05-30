@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include "../include/tree.h"
+#include "../include/min_queue.h"
+#include "../include/count_words.h"
 
 #define OUTPUT_FILE "data.bin"
 
@@ -24,6 +26,11 @@ typedef struct {
     char read_first;
 } ThreadArgs;
 
+typedef struct {
+    unsigned long long count;
+    const int index;
+} HeapVal;
+
 
 void print_word(const void* key, const void* val, const size_t key_size, const size_t val_size) {
     const char* word = (const char*)key;
@@ -32,7 +39,7 @@ void print_word(const void* key, const void* val, const size_t key_size, const s
     printf("%s: %llu\n", word, count);
 }
 
-
+/*
 // Merge trees and serialize into single binary file
 char write_file(Tree** dicts, long num_cores) {
     // Open file and append
@@ -91,7 +98,7 @@ char write_file(Tree** dicts, long num_cores) {
     }
 }
 
-
+*/
 
 int compare_str(const void* a, const void* b) {
     return strcmp((const char*)a, (const char*)b);
@@ -116,6 +123,121 @@ int set_word_count(void** val, size_t* val_size) {
     }
     return 1;
 }
+
+
+
+// Merge trees and serialize into single binary file
+char write_file(Tree** dicts, long num_cores) {
+    // Open file and append
+    FILE* file = fopen(OUTPUT_FILE, "ab");
+
+    if(!file) // File opening failed
+        return 0;
+
+    // Allocate array to hold tree iterators
+    TreeIter** dict_iters = malloc(num_cores * sizeof(TreeIter*));
+    
+    // Initialize tree iterators
+    for(int i = 0; i < num_cores; i++)
+        dict_iters[i] = tree_iter_create(dicts[i]);
+
+    // Initialize priority queue for merging
+    MinQueue* next_words = min_queue_create(num_cores, compare_str);
+
+    // Populate queue with min node in each tree
+    for(int i = 0; i < num_cores; i++) {
+        void* word;
+        void* count;
+
+        // Add element word and count to queue
+        if(tree_iter_has_next(dict_iters[i])) {
+            // Get word and count
+            tree_iter_next(dict_iters[i], &word, NULL, &count, NULL);
+            
+            // Add to queue
+            HeapVal val = {*(unsigned long long*)count, i};
+            min_queue_insert(next_words, (char*)word, sizeof(char*), &val, sizeof(HeapVal*));
+        }
+    }
+
+    while(!min_queue_is_empty(next_words)) {
+        void* void_word;
+        void* void_val;
+
+        min_queue_get_min(next_words, &void_word, &void_val);
+
+        char* word = (char*)void_word;
+        HeapVal* val = (HeapVal*)void_val;
+
+        // Add next node from word's list to queue
+
+
+        // Check next word
+        min_queue_peak(next_words, &void_word, &void_val);
+
+        // Sum all duplicates
+        while(!strcmp((char*)void_word, word)) {
+            // Increment word count
+            HeapVal* duplicate = (HeapVal*)void_val;
+            val->count += duplicate->count;
+
+            // Add next node from duplicates list to queue
+
+
+            // Discard top element from queue
+
+        }
+
+        // Write element to file
+
+
+    }
+
+
+    
+
+    while(1) { // Write all words and count to file
+    
+
+        for(int i = 0; i < num_cores; i++) {
+            if(tree_iter_has_next(dict_iters[i])) {
+                // Get word and count
+                char* word;
+                unsigned long long count;
+                get_word(dict_iters[i], &word, &count);
+
+                // Initialize first word if empty
+                if(!first_word) {
+                    first_word = word;
+                    first_count = count;
+                    continue;
+                }
+
+                // Compare word to current first word
+                int cmp = strcmp(first_word, word);
+
+                if(cmp == 0) // If same, sum counts
+                    first_count += count;
+
+                // Update first_word if first alphabetically
+                if(cmp > 0) {
+                    first_word = word;
+                    first_count = count;
+                }
+            }
+        }
+
+        if(first_word && first_count > 0) {
+            //  Write to file
+
+        } else { // No words left
+            break;
+        } 
+
+    }
+}
+
+
 
 // Read subsection of file and return Tree containing word count
 void* thread_read(void* arg) {
