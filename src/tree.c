@@ -275,7 +275,7 @@ void node_print(Node* node, void (*print)(const void*, const void*, const size_t
     node_print(node->left, print); // Search left
 
     #ifdef DBG
-    printf("Node Height: %llu", node->height);
+    printf("Node Height: %d", node->height);
     #endif
 
     print(node->key, node->val, node->key_size, node->val_size); // Print val using passed function

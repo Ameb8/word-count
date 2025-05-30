@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -20,10 +21,16 @@ typedef struct {
     long end_offset;
 
     // Determine if should read first word
-    char read_first
+    char read_first;
 } ThreadArgs;
 
 
+void print_word(const void* key, const void* val, const size_t key_size, const size_t val_size) {
+    const char* word = (const char*)key;
+    unsigned long long count = *(const unsigned long long*)val;
+
+    printf("%s: %llu\n", word, count);
+}
 
 
 // Merge trees and serialize into single binary file
@@ -116,7 +123,7 @@ void* thread_read(void* arg) {
 
     FILE* file = fopen(args->filepath, "r");
     
-    // Move position indicator to start of thread's subsetion
+    // Move position indicator to start of thread's subsection
     if(fseek(file, args->start_offset, SEEK_SET))
         return NULL; // fseek failed
 
@@ -160,7 +167,7 @@ void* thread_read(void* arg) {
             break;
 
         // Record word in tree
-        tree_set(dict, word, size_of(word), set_word_count);
+        tree_set(dict, word, sizeof(word), set_word_count);
     }
 
     return dict;
@@ -233,6 +240,17 @@ char count_words(char* filepath) {
     // Convert output to Tree's
     Tree** dicts = (Tree**)thread_results;
 
+    #ifdef DBG
+    for(int i = 0; i < num_cores; i++) {
+        printf("\n\nThread %d:\n", i);
+        tree_print(dicts[i], print_word);
+    }
+
+    return 1;
+    #endif
+
+    return 1;
+
     // Merge and write results to file
-    return serialize_dict(dicts, num_cores);
+    //return serialize_dict(dicts, num_cores);
 }
