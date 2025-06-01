@@ -268,6 +268,11 @@ char tree_set(Tree* tree, const void* key, const size_t key_size, int (*set_val)
 }
 
 
+uint32_t tree_size(Tree* tree) {
+    return tree->size;
+}
+
+
 void node_print(Node* node, void (*print)(const void*, const void*, const size_t, const size_t)) {
     if(!node) // Node null
         return;
@@ -412,9 +417,13 @@ char tree_iter_next(TreeIter* tree_iter, void** key, size_t* key_size, void** va
 
     // Set pointer arguments to node's key and value
     *key = next->key;
-    *key_size = next->key_size;
     *val = next->val;
-    *val_size = next->val_size;
+
+    // Set key and val size if not null
+    if(key_size)
+        *key_size = next->key_size;
+    if(val_size)
+        *val_size = next->val_size;
 
     // Push right child and it's leftmost children to stack
     if(next->right)

@@ -2,6 +2,7 @@
 #include <string.h>
 #include "../include/tree.h"
 #include "../include/count_words.h"
+#include "../include/print_dict.h"
 
 
 int main(int argc, char *argv[]) {
@@ -12,8 +13,12 @@ int main(int argc, char *argv[]) {
 
     char result = count_words(argv[1]);
 
+    #ifdef DBG
     if(result)
         printf("Words counted successfully\n");
     else
         printf("Word Counting Failed\n");
+    #endif
+
+    print_dict();
 }

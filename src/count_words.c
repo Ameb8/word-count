@@ -26,9 +26,11 @@ typedef struct {
     char read_first;
 } ThreadArgs;
 
+
+
 typedef struct {
     unsigned long long count;
-    const int index;
+    int index;
 } HeapVal;
 
 
@@ -39,66 +41,6 @@ void print_word(const void* key, const void* val, const size_t key_size, const s
     printf("%s: %llu\n", word, count);
 }
 
-/*
-// Merge trees and serialize into single binary file
-char write_file(Tree** dicts, long num_cores) {
-    // Open file and append
-    FILE* file = fopen(OUTPUT_FILE, "ab");
-
-    if(!file) // File opening failed
-        return 0;
-
-    // Allocate array to hold tree iterators
-    TreeIter** dict_iters = malloc(num_cores * sizeof(TreeIter*));
-    
-    // Initialize tree iterators
-    for(int i = 0; i < num_cores; i++)
-        dict_iters[i] = tree_iter_create(dicts[i]);
-
-    while(1) { // Write all words and count to file
-        // Initialize first word and its count
-        char* first_word = NULL;
-        int first_count = -1;
-
-        for(int i = 0; i < num_cores; i++) {
-            if(tree_iter_has_next(dict_iters[i])) {
-                // Get word and count
-                char* word;
-                unsigned long long count;
-                get_word(dict_iters[i], &word, &count);
-
-                // Initialize first word if empty
-                if(!first_word) {
-                    first_word = word;
-                    first_count = count;
-                    continue;
-                }
-
-                // Compare word to current first word
-                int cmp = strcmp(first_word, word);
-
-                if(cmp == 0) // If same, sum counts
-                    first_count += count;
-
-                // Update first_word if first alphabetically
-                if(cmp > 0) {
-                    first_word = word;
-                    first_count = count;
-                }
-            }
-        }
-
-        if(first_word && first_count > 0) {
-            //  Write to file
-
-        } else { // No words left
-            break;
-        } 
-
-    }
-}
-
-*/
 
 int compare_str(const void* a, const void* b) {
     return strcmp((const char*)a, (const char*)b);
@@ -125,24 +67,40 @@ int set_word_count(void** val, size_t* val_size) {
 }
 
 
+// Write word and count to file
+void write_word(FILE* file, char* word, unsigned long long count) {
+    unsigned int len = strlen(word);
+    fwrite(&len, sizeof(unsigned int), 1, file);
+    fwrite(word, sizeof(char), len, file);
+    fwrite(&count, sizeof(unsigned long long), 1, file);
+}
+
 
 // Merge trees and serialize into single binary file
 char write_file(Tree** dicts, long num_cores) {
     // Open file and append
-    FILE* file = fopen(OUTPUT_FILE, "ab");
+    FILE* file = fopen(OUTPUT_FILE, "wb");
 
     if(!file) // File opening failed
         return 0;
+
+    #ifdef DBG
+    printf("data.bin Opened\n");
+    #endif
+
+    uint32_t num_words = 0;
 
     // Allocate array to hold tree iterators
     TreeIter** dict_iters = malloc(num_cores * sizeof(TreeIter*));
     
     // Initialize tree iterators
-    for(int i = 0; i < num_cores; i++)
-        dict_iters[i] = tree_iter_create(dicts[i]);
+    for(int i = 0; i < num_cores; i++) {
+        if(dicts[i]) // Check tree is non-null
+            dict_iters[i] = tree_iter_create(dicts[i]);
+    }
 
     // Initialize priority queue for merging
-    MinQueue* next_words = min_queue_create(num_cores, compare_str);
+    MinQueue* next_words = min_queue_create(num_cores + 1, compare_str);
 
     // Populate queue with min node in each tree
     for(int i = 0; i < num_cores; i++) {
@@ -150,17 +108,35 @@ char write_file(Tree** dicts, long num_cores) {
         void* count;
 
         // Add element word and count to queue
-        if(tree_iter_has_next(dict_iters[i])) {
+        if(dict_iters[i] && tree_iter_has_next(dict_iters[i])) {
             // Get word and count
             tree_iter_next(dict_iters[i], &word, NULL, &count, NULL);
             
             // Add to queue
             HeapVal val = {*(unsigned long long*)count, i};
-            min_queue_insert(next_words, (char*)word, sizeof(char*), &val, sizeof(HeapVal*));
+            #ifdef DBG
+            printf("HeapVal[%d] = {%lld, %d}\n", i, val.count, val.index);
+            #endif
+            min_queue_insert(next_words, (char*)word, strlen(word) + 1, &val, sizeof(HeapVal));
         }
     }
 
+    #ifdef DBG
+    printf("Queue Size: %d\n", min_queue_size(next_words));
+
+    if(!min_queue_is_empty(next_words))
+        printf("Queue not empty\n");
+    else   
+        printf("Queue empty\n");
+
+    int lr = 0;
+    #endif
+
     while(!min_queue_is_empty(next_words)) {
+        #ifdef DBG
+        printf("Min Queue Not empty, Loop: %d\n", lr++);
+        #endif
+
         void* void_word;
         void* void_val;
 
@@ -169,8 +145,24 @@ char write_file(Tree** dicts, long num_cores) {
         char* word = (char*)void_word;
         HeapVal* val = (HeapVal*)void_val;
 
-        // Add next node from word's list to queue
+        #ifdef DBG
+        printf("Adding to output: {%s, {%lld, %d}}\n", word, val->count, val->index);
+        #endif
 
+        // Add next node from word's list to queue
+        if(tree_iter_has_next(dict_iters[val->index])) {
+            tree_iter_next(dict_iters[val->index], &void_word, NULL, &void_val, NULL);
+            HeapVal* hval = malloc(sizeof(HeapVal));
+            hval->count = *(unsigned long long*)void_val;
+            hval->index = val->index;
+            //HeapVal hval = {*(unsigned long long*)void_val, val->index};
+            #ifdef DBG
+            printf("Creating HeapVal: count=%llu, index=%d\n", hval->count, hval->index);
+            printf("HeapVal address: %p, size: %zu\n", (void*)&val, sizeof(HeapVal));
+            printf("sizeof(HeapVal): %zu\n", sizeof(*hval));
+            #endif
+            min_queue_insert(next_words, (char*)void_word, strlen(void_word) + 1, hval, sizeof(HeapVal));
+        }
 
         // Check next word
         min_queue_peak(next_words, &void_word, &void_val);
@@ -182,59 +174,29 @@ char write_file(Tree** dicts, long num_cores) {
             val->count += duplicate->count;
 
             // Add next node from duplicates list to queue
-
+            if(tree_iter_has_next(dict_iters[duplicate->index])) {
+                tree_iter_next(dict_iters[duplicate->index], &void_word, NULL, &void_val, NULL);
+                HeapVal hval = {*(unsigned long long*)void_val, duplicate->index};
+                min_queue_insert(next_words, (char*)void_word, strlen(void_word) + 1, &hval, sizeof(HeapVal));
+            }
 
             // Discard top element from queue
-
+            min_queue_get_min(next_words, NULL, NULL);
         }
 
         // Write element to file
-
-
+        write_word(file, word, val->count);
     }
 
+    min_queue_free(next_words);
 
-    
-
-    while(1) { // Write all words and count to file
-    
-
-        for(int i = 0; i < num_cores; i++) {
-            if(tree_iter_has_next(dict_iters[i])) {
-                // Get word and count
-                char* word;
-                unsigned long long count;
-                get_word(dict_iters[i], &word, &count);
-
-                // Initialize first word if empty
-                if(!first_word) {
-                    first_word = word;
-                    first_count = count;
-                    continue;
-                }
-
-                // Compare word to current first word
-                int cmp = strcmp(first_word, word);
-
-                if(cmp == 0) // If same, sum counts
-                    first_count += count;
-
-                // Update first_word if first alphabetically
-                if(cmp > 0) {
-                    first_word = word;
-                    first_count = count;
-                }
-            }
-        }
-
-        if(first_word && first_count > 0) {
-            //  Write to file
-
-        } else { // No words left
-            break;
-        } 
-
+    // Free trees and iterators
+    for(int i = 0; i < num_cores; i++) {
+        tree_free(dicts[i]);
+        tree_iter_free(dict_iters[i]);
     }
+
+    return 1;
 }
 
 
@@ -244,10 +206,39 @@ void* thread_read(void* arg) {
     ThreadArgs* args = (ThreadArgs*)arg;
 
     FILE* file = fopen(args->filepath, "r");
+
+    if(!file)
+        return NULL;
     
     // Move position indicator to start of thread's subsection
     if(fseek(file, args->start_offset, SEEK_SET))
         return NULL; // fseek failed
+
+
+    #ifdef DBG
+    printf("Thread scanning section from offset %ld to %ld:\n", args->start_offset, args->end_offset);
+    long cur_pos = ftell(file);
+    if (cur_pos == -1) return NULL;
+
+    fseek(file, args->start_offset, SEEK_SET);
+
+    char* buffer = malloc(args->end_offset - args->start_offset + 1);
+    if (!buffer) return NULL;
+
+    fread(buffer, 1, args->end_offset - args->start_offset, file);
+    buffer[args->end_offset - args->start_offset] = '\0';  // Null-terminate
+
+    printf("Thread section contents:\n%s\n", buffer);
+    free(buffer);
+
+    // Return to where we were before printing section
+    fseek(file, cur_pos, SEEK_SET);
+
+    // Move position indicator to start of thread's subsection
+    if(fseek(file, args->start_offset, SEEK_SET))
+    return NULL; // fseek failed
+    #endif
+    
 
     char word[WORD_BUF_SIZE]; // Buffer for word
     long pos = args->start_offset;  // Get starting position
@@ -259,7 +250,7 @@ void* thread_read(void* arg) {
             continue; // First thread must read first word
 
         if(isspace(c))
-            break; // Delimiter  found
+            break; // Delimiter found
 
         long pos = ftell(file); // Get file pointer position
 
@@ -273,16 +264,29 @@ void* thread_read(void* arg) {
     // Create tree to hold words
     Tree* dict = tree_create(compare_str);
 
+    #ifdef DBG
+    char* words_read[1000] = {NULL};
+    int read_pos = 0;
+    #endif
+
     // Add words until end of file or section
-    while(pos < args->end_offset) {
+    while(1) {
         // Get file pointer position
         long word_start = ftell(file); 
+
+        if(word_start >= args->end_offset)
+            break; // End of section reached
 
         if(word_start == -1)
             return NULL; // Error detected
 
         // Read next word
         int ret = fscanf(file, "%255s", word);
+
+        #ifdef DBG
+        // Add read word to words_read
+        words_read[read_pos++] = strdup(word);
+        #endif
 
         // End of file reached
         if(ret == EOF)
@@ -292,13 +296,25 @@ void* thread_read(void* arg) {
         tree_set(dict, word, sizeof(word), set_word_count);
     }
 
+    #ifdef DBG
+    printf("Words read (%d):\n", read_pos);
+
+    for(int i = 0; i < 100 && words_read[i]; i++) {
+        printf("%s\n", words_read[i]);
+        free(words_read[i]);
+    }
+    #endif
+
+    // Free thread argument memory
+    free(arg);
+
     return dict;
 }
 
 
 char count_words(char* filepath) {
     // Get number of logical cores available 
-    long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
+    long num_cores = 2; //= sysconf(_SC_NPROCESSORS_ONLN);
 
     #ifdef DBG
     printf("Cores Available: %ld\n", num_cores);
@@ -367,12 +383,8 @@ char count_words(char* filepath) {
         printf("\n\nThread %d:\n", i);
         tree_print(dicts[i], print_word);
     }
-
-    return 1;
     #endif
 
-    return 1;
-
     // Merge and write results to file
-    //return serialize_dict(dicts, num_cores);
+    return write_file(dicts, num_cores);
 }

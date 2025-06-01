@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "tree.h": "c"
+        "tree.h": "c",
+        "cstdlib": "c",
+        "variant": "c",
+        "chrono": "c"
     }
 }

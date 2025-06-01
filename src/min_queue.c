@@ -1,6 +1,8 @@
 
 #include <stdlib.h>
+#include <string.h>
 #include "../include/tree.h"
+#include "../include/min_queue.h"
 
 
 typedef struct {
@@ -64,13 +66,13 @@ static inline int right_child(MinQueue* pq, int index) {
 static inline int min_child(MinQueue* pq, int parent) {
     if(left_child(pq, parent < pq->size) && min_index(pq, left_child(pq, parent), right_child(pq, parent)) < 0) {
         // Compare left child to parent
-        if(min_index(left_child(pq, parent), parent) < 0)
+        if(min_index(pq, left_child(pq, parent), parent) < 0)
             return left_child(pq, parent);
         
         return parent; // Parent is min
     } else if(right_child(pq, parent < pq->size)) {
         // Compare left child to parent
-        if(min_index(right_child(pq, parent), parent) < 0)
+        if(min_index(pq, right_child(pq, parent), parent) < 0)
             return right_child(pq, parent);
         
         return parent; // Parent is min
@@ -99,6 +101,20 @@ Element* element_create(const void* key, size_t key_size, const void* val, size_
 
     if(!elem) // Allocation failed
         return NULL;
+
+    #ifdef DBG
+    typedef struct {
+        unsigned long long count;
+        int index;
+    } HeapVal;
+
+    printf("Val Size: %zu\n", val_size);
+    HeapVal* test = (HeapVal*)val;
+    printf("HeapVal: %llu, %d\n", test->count, test->index);
+    printf("Key Size: %zu\n", key_size);
+    char* key_print = (char*)key;
+    printf("Key: %s\n", key_print);
+    #endif
 
     // Allocate memory for key
     elem->key = malloc(key_size);
@@ -137,7 +153,7 @@ static void heapify_down(MinQueue* pq) {
     while(min_index != pos) { // Heap down
         swap(pq, pos, min_index);
         pos = min_index;
-        min_index == min_child(pq, pos);
+        min_index = min_child(pq, pos);
     }
 }
 
@@ -148,13 +164,17 @@ char min_queue_insert(MinQueue* pq, void* key, size_t key_size, void* val, size_
 
     Element* new = element_create(key, key_size, val, val_size);
 
-    if(!new) //Element creation failed
+    if(!new) {//Element creation failed
+        printf("Element not created\n");
         return 0;
-
+    }
     pq->heap[pq->size++] = new;
 
     heapify_up(pq);
+
+    return 1;
 }
+
 
 char min_queue_get_min(MinQueue* pq, void** key, void** val) {
     if(!pq || pq->size == 0)
@@ -184,6 +204,25 @@ char min_queue_peak(MinQueue* pq, void** key, void** val) {
     *val = pq->heap[0]->val;
 
     return 1;
+}
+
+
+int min_queue_size(MinQueue* pq) {
+    if(!pq) // return -1 if null input
+        return -1;
+
+    return pq->size;
+}
+
+
+char min_queue_is_empty(MinQueue* pq) {
+    if(!pq)
+        return 1;
+
+    if(pq->size == 0)
+        return 1;
+
+    return 0;
 }
 
 
