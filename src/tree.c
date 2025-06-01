@@ -8,28 +8,28 @@
 
 typedef struct Node Node;
 
-    typedef struct Node {
-        // Node key
-        void* key;
-        size_t key_size;
+typedef struct Node {
+    // Node key
+    void* key;
+    size_t key_size;
 
-        // Node value
-        void* val;
-        size_t val_size;
+    // Node value
+    void* val;
+    size_t val_size;
 
-        // Tree structure data
-        uint8_t height;
-        Node* left;
-        Node* right;
-    } Node;
+    // Tree structure data
+    uint8_t height;
+    Node* left;
+    Node* right;
+} Node;
 
 
-    typedef struct Tree {
-        Node* root; // Root of tree
-        int (*compare)(const void*, const void*); // Comparison function
-        uint32_t size; // Number of items in tree
-        uint8_t max_height;
-    } Tree;
+typedef struct Tree {
+    Node* root; // Root of tree
+    int (*compare)(const void*, const void*); // Comparison function
+    uint32_t size; // Number of items in tree
+    uint8_t max_height;
+} Tree;
 
 
     typedef struct TreeIter {
@@ -145,38 +145,45 @@ Node* balance(Node* node) {
 }
 
 
-// Creat node with passed data
 Node* node_create(const void* key, const void* val, size_t key_size, size_t val_size) {
-    Node* node = malloc(sizeof(Node)); // Allocate memory
-
-    if(!node) // Allocation failed
+    if(!key) // Ensure key is not null
         return NULL;
 
-    // Allocate memory for data
-    node->key = malloc(key_size);
-    node->val = malloc(val_size);
+    Node* node = malloc(sizeof(Node));
+    if(!node)
+        return NULL;
 
-    if(!node->key || !node->val) { // Allocation failed
+    node->key = malloc(key_size);
+    
+    if(!node->key) {
         free(node);
         return NULL;
     }
 
-    // Copy key and value to node
     memcpy(node->key, key, key_size);
-    if(val && val_size > 0)
-        memcpy(node->val, val, val_size);
-
-    // Save size of key and value
     node->key_size = key_size;
-    node->val_size = val_size;
 
-    // Initialize tree structure fields
+    if(val && val_size > 0) {
+        node->val = malloc(val_size);
+        if(!node->val) {
+            free(node->key);
+            free(node);
+            return NULL;
+        }
+        memcpy(node->val, val, val_size);
+        node->val_size = val_size;
+    } else {
+        node->val = NULL;
+        node->val_size = 0;
+    }
+
     node->height = 1;
     node->left = NULL;
     node->right = NULL;
 
     return node;
 }
+
 
 
 Tree* tree_create(int (*compare)(const void*, const void*)) {
@@ -260,9 +267,13 @@ char tree_set(Tree* tree, const void* key, const size_t key_size, int (*set_val)
 
     
     if(node_set(tree->root, key, key_size, set_val, tree)) {
-        tree->size++;
+        tree->size++; // Update size
+        tree->root = balance(tree->root); // Ensure root is balanced
+        tree->max_height = tree->root ? tree->root->height : 0; // Updat eheight
+
         return 0;
     }
+    
 
     return 1;
 }
@@ -272,6 +283,28 @@ uint32_t tree_size(Tree* tree) {
     return tree->size;
 }
 
+#ifdef TEST
+void node_print_level(Node* node, void (*print)(const void*, const void*, const size_t, const size_t), int level) {
+    if(!node) // Node null
+        return;
+
+    node_print_level(node->left, print, level + 1); // Search left
+
+
+    print(node->key, node->val, node->key_size, node->val_size); // Print val using passed function
+    printf("(Level: %d, Height: %d)\n\n", level, node->height);
+
+    node_print_level(node->right, print, level + 1); // Search right
+}
+
+void tree_print_level(Tree* tree, void (*print)(const void*, const void*, const size_t, const size_t)) {
+    if(!tree || !print)
+        return; // Inputs null
+    
+    node_print_level(tree->root, print, 0); // Print tree
+}
+#endif
+
 
 void node_print(Node* node, void (*print)(const void*, const void*, const size_t, const size_t)) {
     if(!node) // Node null
@@ -279,11 +312,9 @@ void node_print(Node* node, void (*print)(const void*, const void*, const size_t
 
     node_print(node->left, print); // Search left
 
-    #ifdef DBG
-    printf("Node Height: %d", node->height);
-    #endif
 
     print(node->key, node->val, node->key_size, node->val_size); // Print val using passed function
+
     node_print(node->right, print); // Search right
 }
 

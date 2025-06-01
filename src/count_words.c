@@ -33,7 +33,7 @@ typedef struct {
     int index;
 } HeapVal;
 
-
+/*
 void print_word(const void* key, const void* val, const size_t key_size, const size_t val_size) {
     const char* word = (const char*)key;
     unsigned long long count = *(const unsigned long long*)val;
@@ -268,7 +268,7 @@ void* thread_read(void* arg) {
     char* words_read[1000] = {NULL};
     int read_pos = 0;
     #endif
-
+ 
     // Add words until end of file or section
     while(1) {
         // Get file pointer position
@@ -388,3 +388,4 @@ char count_words(char* filepath) {
     // Merge and write results to file
     return write_file(dicts, num_cores);
 }
+*/

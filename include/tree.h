@@ -19,4 +19,8 @@ char tree_iter_has_next(TreeIter* tree_iter);
 char tree_iter_next(TreeIter* tree_iter, void** key, size_t* key_size, void** val, size_t* val_size);
 void tree_iter_free(TreeIter* tree_iter);
 
+#ifdef TEST
+void tree_print_level(Tree* tree, void (*print)(const void*, const void*, const size_t, const size_t));
+#endif
+
 #endif

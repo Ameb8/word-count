@@ -3,6 +3,9 @@
         "tree.h": "c",
         "cstdlib": "c",
         "variant": "c",
-        "chrono": "c"
+        "chrono": "c",
+        "__locale": "c",
+        "ostream": "c",
+        "print": "c"
     }
 }
