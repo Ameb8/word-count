@@ -1,6 +1,6 @@
 #ifndef MIN_QUEUE_H
 #define MIN_QUEUE_H
-
+/*
 #include <stdio.h>
 
 typedef struct MinQueue MinQueue;
@@ -12,5 +12,5 @@ char min_queue_peak(MinQueue* pq, void** key, void** val);
 int min_queue_size(MinQueue* pq);
 char min_queue_is_empty(MinQueue* pq);
 void min_queue_free(MinQueue* pq);
-
+*/
 #endif
