@@ -57,7 +57,7 @@ static inline int right_child(int index) {
     return 2 * index + 2;
 }
 
-
+/*
 // Gets index of a min value between parent and children
 static inline int min_child(WordQueue* wq, int parent) {
     if(left_child(parent) < wq->size && min_index(wq, left_child(parent), right_child(parent)) < 0) {
@@ -73,7 +73,28 @@ static inline int min_child(WordQueue* wq, int parent) {
         
         return parent; // Parent is min
     }
+}*/
+
+
+
+static inline int min_child(WordQueue* wq, int parent) {
+    int left = left_child(parent);
+    int right = right_child(parent);
+    int smallest = parent;
+
+    if (left < wq->size &&
+        strcmp(wq->heap[left]->word, wq->heap[smallest]->word) < 0) {
+        smallest = left;
+    }
+
+    if (right < wq->size &&
+        strcmp(wq->heap[right]->word, wq->heap[smallest]->word) < 0) {
+        smallest = right;
+    }
+
+    return smallest;
 }
+
 
 static inline void swap(WordQueue* wq, int index_1, int index_2) {
     Element* temp = wq->heap[index_1];
@@ -166,12 +187,30 @@ char* word_queue_get_min(WordQueue* pq, unsigned long long* count, int* index) {
 }
 
 
+#ifdef DBG
+void print_element(Element* element) {
+    printf("(%s)(%llu) [%d]\n", element->word, element->count, element->index);
+}
+
+void print_heap(WordQueue* pq) {
+    for(int i = 0; i < pq->size; i++) {
+        printf("\nHeap Index %d\n", i);
+        if(!pq->heap[i])
+            printf("Element is NULL\n");
+        else
+            print_element(pq->heap[i]);
+    }
+}
+#endif
+
+
 char* word_queue_peak(WordQueue* pq) {
     if(!pq || !pq->heap || pq->size == 0)
         return NULL;
 
     #ifdef DBG
     printf("Word Queue Size: %d\n", pq->size);
+    print_heap(pq);
     #endif
 
     return pq->heap[0]->word;

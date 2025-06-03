@@ -12,4 +12,9 @@ int word_queue_size(WordQueue* pq);
 char word_queue_is_empty(WordQueue* pq);
 void word_queue_free(WordQueue* pq);
 
+#ifdef DBG
+typedef struct Element Element;
+void print_heap(WordQueue* pq);
+#endif
+
 #endif

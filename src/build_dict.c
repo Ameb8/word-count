@@ -168,11 +168,13 @@ char write_dict(Tree** dicts, int num_cores) {
             printf("\nPopped from queue: %s\n", test_word);
         #endif
 
+
+        
         // Add duplicate words from queue
         while(!word_queue_is_empty(word_queue) && !strcmp(word, word_queue_peak(word_queue))) {
             // Get duplicate word count
             unsigned long long dup_count;
-            word_queue_get_min(word_queue, &dup_count, &index);
+            free(word_queue_get_min(word_queue, &dup_count, &index));
 
             #ifdef DBG
             printf("Duplicate count: %llu\n", dup_count);
@@ -187,10 +189,13 @@ char write_dict(Tree** dicts, int num_cores) {
                 word_queue_insert(word_queue, new_word, dup_count, index);
             }
         }
+        
 
         // Write word to file
         if(!word_write(file, word, count))
             return 0;
+
+        free(word);
     }
 
     word_queue_free(word_queue); // Deallocate queue
@@ -200,7 +205,19 @@ char write_dict(Tree** dicts, int num_cores) {
 
     free(next); // Deallocate array of tree iterators
 
+    fclose(file); // Close file
+
     return 1;
+}
+
+
+void lowercase(char* word) {
+    char* c = word;
+
+    while(c && *c != '\0') {
+        *c = tolower((unsigned char)*c);
+        c++;
+    }
 }
 
 

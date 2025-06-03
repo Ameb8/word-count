@@ -29,5 +29,8 @@ int main(int argc, char *argv[]) {
         printf("Word Counting Failed\n");
     #endif
 
-    //print_dict();
+    if(!print_dict())
+        printf("Error Reading Word Counts\n");
+
+    return 1;
 }

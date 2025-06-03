@@ -6,9 +6,9 @@
 #define DICT_FILE "data.bin"
 
 char print_dict() {
-    FILE* file = fopen(DICT_FILE, "rb");
+    FILE* file = fopen(DICT_FILE, "rb"); // Open file to read
 
-    if(!file)
+    if(!file) // File failed too open
         return 1;
 
     #ifdef DBG
@@ -16,10 +16,10 @@ char print_dict() {
     #endif
 
     while(1) {
-        unsigned int len;
+        size_t len;
 
         // Read the length of the word
-        size_t read_len = fread(&len, sizeof(unsigned int), 1, file);
+        size_t read_len = fread(&len, sizeof(len), 1, file);
 
         #ifdef DBG
         printf("Read Length: %zu\n", read_len);
@@ -43,7 +43,7 @@ char print_dict() {
 
         if(read_word != len) {
             free(word);
-            break;
+            return 0;;
         }
 
         word[len] = '\0'; // Null-terminate the string
@@ -51,9 +51,10 @@ char print_dict() {
         // Read the count
         unsigned long long count;
         size_t read_count = fread(&count, sizeof(unsigned long long), 1, file);
-        if (read_count != 1) {
+
+        if(read_count != 1) { // Count read failed
             free(word);
-            break;
+            return 0;;
         }
 
         // Print the result
@@ -62,4 +63,5 @@ char print_dict() {
     }
 
     fclose(file);
+    return 1;
 }
