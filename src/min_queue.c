@@ -1,4 +1,4 @@
-
+/*
 #include <stdlib.h>
 #include <string.h>
 #include "../include/tree.h"
@@ -242,4 +242,4 @@ void min_queue_free(MinQueue* pq) {
     // Free heap and queue
     free(pq->heap);
     free(pq);
-}
+}*/
