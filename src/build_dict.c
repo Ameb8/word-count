@@ -89,7 +89,7 @@ char replace_data(FILE* file, unsigned long long data, long offset) {
         return 0; // Error in fseek
 
     // Write data
-    if(fwrite(&data, sizeof(data), 1, file) ! = 1)
+    if(fwrite(&data, sizeof(data), 1, file) != 1)
         return 0; // Write failed
 
     return 1;
@@ -228,7 +228,7 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     long num_offset = 0;
 
     // Get file with header containing dummy data
-    FILE* file = init_out_file(input_name, &unique_offset, &word_offset);
+    FILE* file = init_out_file(input_name, &unique_offset, &num_offset);
 
     if(!file) // File failed to open
         return 0;
@@ -329,7 +329,13 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
         unique_words++;
     }
 
-    free_data(dicts, next, word_queue, file, word, num_cores);
+    // Set total and unique words
+    if(!write_word_count(file, unique_words, num_words, unique_offset, num_offset)) {
+        free_data(dicts, next, word_queue, file, NULL, num_cores);
+        return NULL;
+    }
+
+    free_data(dicts, next, word_queue, file, NULL, num_cores);
 
     return 1;
 }
@@ -457,11 +463,6 @@ void* read_section(void* arg) {
 
     }
 
-    if(!write_word_count(file, unique_words, num_words, unique_offset, word_offset)) {
-        //free_dicts(dicts, num_cores);
-        return NULL 
-    }
-
 
     free(args); // Free memory for argument
 
@@ -469,8 +470,7 @@ void* read_section(void* arg) {
 }
 
 
-
-char count_words(const char* filepath) {
+char count_words(char* filepath) {
     // Get number of logical cores available 
     long num_cores = sysconf(_SC_NPROCESSORS_ONLN);
 
