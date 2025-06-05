@@ -269,7 +269,7 @@ char tree_set(Tree* tree, const void* key, const size_t key_size, int (*set_val)
     if(node_set(tree->root, key, key_size, set_val, tree)) {
         tree->size++; // Update size
         tree->root = balance(tree->root); // Ensure root is balanced
-        tree->max_height = tree->root ? tree->root->height : 0; // Updat eheight
+        tree->max_height = tree->root ? tree->root->height : 0; // Set node height
 
         return 0;
     }

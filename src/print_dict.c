@@ -80,6 +80,8 @@ char print_header(FILE* file) {
 }
 
 
+
+
 char print_dict() {
     FILE* file = fopen(DICT_FILE, "rb"); // Open file to read
 
@@ -94,7 +96,6 @@ char print_dict() {
         fclose(file);
         return 0;
     }
-
 
     while(1) {
         char* word = read_str(file); // Read word
