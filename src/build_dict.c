@@ -170,7 +170,7 @@ FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offs
     if(!file) // File failed to open
         return NULL;
 
-    long len = strlen(input_name) + 1; // Get length of name
+    long len = strlen(input_name); // Get length of name
     
     // Write length of input file name
     if(fwrite(&len, sizeof(len), 1, file) != 1) {
@@ -180,7 +180,7 @@ FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offs
     }
 
     // Write filename
-    if(fwrite(&input_name, sizeof(char), strlen(input_name), file) != strlen(input_name)) {
+    if(fwrite(input_name, sizeof(char), strlen(input_name), file) != strlen(input_name)) {
         // Write failed
         fclose(file);
         return NULL;
@@ -237,23 +237,23 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     TreeIter** next = malloc(num_cores * sizeof(TreeIter*));
 
     if(!next) // Allocation failed
-        return free_data(dicts, NULL, NULL, file, NULL, num_cores);
+        return 0; //free_data(dicts, NULL, NULL, file, NULL, num_cores);
 
     for(int i = 0; i < num_cores; i++) { // Iterate tree dicts
         if(!dicts[i]) // Only write if all tree's non-null
-            return free_data(dicts, next, NULL, file, NULL, num_cores);
+            return 0; //free_data(dicts, next, NULL, file, NULL, num_cores);
 
         next[i] = tree_iter_create(dicts[i]); // Create tree iterator
 
         if(!next[i]) // Allocation failed
-            return free_data(dicts, NULL, NULL, file, NULL, num_cores);
+            return 0; // free_data(dicts, NULL, NULL, file, NULL, num_cores);
     }
 
     // Create priority queue to hold words
     WordQueue* word_queue = word_queue_create(num_cores);
 
     if(!word_queue) // Allocation failed
-        return free_data(dicts, NULL, NULL, file, NULL, num_cores);
+        return 0; //free_data(dicts, NULL, NULL, file, NULL, num_cores);
     
     // Populate queue with word from each tree
     for(int i = 0; i < num_cores; i++) {
@@ -320,7 +320,7 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
 
         // Write word to file
         if(!word_write(file, word, count))
-            return free_data(dicts, next, word_queue, file, word, num_cores);
+            return 0; //free_data(dicts, next, word_queue, file, word, num_cores);
 
         free(word); // Deallocate word;
 
@@ -330,12 +330,10 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     }
 
     // Set total and unique words
-    if(!write_word_count(file, unique_words, num_words, unique_offset, num_offset)) {
-        free_data(dicts, next, word_queue, file, NULL, num_cores);
-        return NULL;
-    }
+    if(!write_word_count(file, unique_words, num_words, unique_offset, num_offset))
+        return 0; //free_data(dicts, next, word_queue, file, NULL, num_cores);
 
-    free_data(dicts, next, word_queue, file, NULL, num_cores);
+    // free_data(dicts, next, word_queue, file, NULL, num_cores);
 
     return 1;
 }
@@ -576,7 +574,7 @@ char count_words(char* filepath) {
 
     // Free Allocated Memory
     for(int i = 0; i < num_cores; i++) {
-        if(dicts[i])
+        if(dicts && dicts[i])
             tree_free(dicts[i]);
     }
 
