@@ -96,14 +96,18 @@ char replace_data(FILE* file, unsigned long long data, long offset) {
 }
 
 
-char write_word_count(FILE* file, unsigned long long unique_words, unsigned long long num_words, long unique_offset, long word_offset) {
-    // Replace unique words
-    if(!replace_data(file, unique_words, unique_offset))
-        return 0;
+char write_word_count(FILE* file, unsigned long long unique_words, unsigned long long num_words, long offset) {
+    // Find start of data
+    if(fseek(file, offset, SEEK_SET))
+        return 0; // Error in fseek
 
-    // Replace total words
-    if(!replace_data(file, num_words, word_offset))
-        return 0;
+    // Replace unique word count
+    if(fwrite(&unique_words, sizeof(unique_words), 1, file) != 1)
+        return 0; // Write failed
+
+    // Replace total word count
+    if(fwrite(&num_words, sizeof(num_words), 1, file) != 1)
+        return 0; // Write failed
 
     return 1;
 }
@@ -117,24 +121,18 @@ Tree** free_dicts(Tree** dicts, int num_dicts) {
     return NULL;
 }
 
-char free_data(Tree** dicts, TreeIter** iters, WordQueue* queue, FILE* file, char* word, int num_trees) {
+char free_data(TreeIter** iters, WordQueue* queue, FILE* file, char* word, int num_trees) {
     // Free all trees and iterators
     for(int i = 0; i < num_trees; i++) {
-        if(dicts && dicts[i]) // Free tree
-            tree_free(dicts[i]);
         if(iters && iters[i]) // Free iterator
             tree_iter_free(iters[i]);
     }
 
-    // Free tree and iter arrays
-    if(dicts) // Free tree array
-        free(dicts);
     if(iters) // Free iterator array
         free(iters);
 
     if(queue) // Free word priority queue
         word_queue_free(queue);
-
 
     if(file) // Close file
         fclose(file);
@@ -164,13 +162,13 @@ int set_word_count(void** val, size_t* val_size) {
     return 1;
 }
 
-FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offset) {
+FILE* init_out_file(const char* input_name, long* offset) {
     FILE* file = fopen(FILE_OUT, "wb"); // Open file to write
 
     if(!file) // File failed to open
         return NULL;
 
-    long len = strlen(input_name); // Get length of name
+    size_t len = strlen(input_name); // Get length of name
     
     // Write length of input file name
     if(fwrite(&len, sizeof(len), 1, file) != 1) {
@@ -187,9 +185,9 @@ FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offs
     }
 
     unsigned long long dummy_data = 0; // Dummy data for word count
-    *unique_offset = ftell(file); // Assign start of unique words
+    *offset = ftell(file); // Assign start of unique words
 
-    if(*unique_offset == -1l) { // ftell failure
+    if(*offset == -1l) { // ftell failure
         fclose(file);
         return NULL;
     }
@@ -197,13 +195,6 @@ FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offs
     // Write number of unique words
     if(fwrite(&dummy_data, sizeof(dummy_data), 1, file) != 1) {
         // Write failed
-        fclose(file);
-        return NULL;
-    }
-
-    *word_offset = ftell(file); // Assign start of total words
-
-    if(*word_offset == -1l) { // ftell failure
         fclose(file);
         return NULL;
     }
@@ -220,15 +211,14 @@ FILE* init_out_file(const char* input_name, long* unique_offset, long* word_offs
 
 char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     // Number of words counter
-    unsigned long long num_words;
-    unsigned long long unique_words;
+    unsigned long long num_words = 0;
+    unsigned long long unique_words = 0;
 
     // Offset of word position
-    long unique_offset = 0;
-    long num_offset = 0;
+    long count_offset = 0;
 
     // Get file with header containing dummy data
-    FILE* file = init_out_file(input_name, &unique_offset, &num_offset);
+    FILE* file = init_out_file(input_name, &count_offset);
 
     if(!file) // File failed to open
         return 0;
@@ -237,23 +227,23 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     TreeIter** next = malloc(num_cores * sizeof(TreeIter*));
 
     if(!next) // Allocation failed
-        return 0; //free_data(dicts, NULL, NULL, file, NULL, num_cores);
+        return free_data(NULL, NULL, file, NULL, num_cores);
 
     for(int i = 0; i < num_cores; i++) { // Iterate tree dicts
         if(!dicts[i]) // Only write if all tree's non-null
-            return 0; //free_data(dicts, next, NULL, file, NULL, num_cores);
+            return free_data(next, NULL, file, NULL, num_cores);
 
         next[i] = tree_iter_create(dicts[i]); // Create tree iterator
 
         if(!next[i]) // Allocation failed
-            return 0; // free_data(dicts, NULL, NULL, file, NULL, num_cores);
+            return free_data(NULL, NULL, file, NULL, num_cores);
     }
 
     // Create priority queue to hold words
     WordQueue* word_queue = word_queue_create(num_cores);
 
     if(!word_queue) // Allocation failed
-        return 0; //free_data(dicts, NULL, NULL, file, NULL, num_cores);
+        return free_data(NULL, NULL, file, NULL, num_cores);
     
     // Populate queue with word from each tree
     for(int i = 0; i < num_cores; i++) {
@@ -320,7 +310,7 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
 
         // Write word to file
         if(!word_write(file, word, count))
-            return 0; //free_data(dicts, next, word_queue, file, word, num_cores);
+            return free_data(next, word_queue, file, word, num_cores);
 
         free(word); // Deallocate word;
 
@@ -330,10 +320,10 @@ char write_dict(Tree** dicts, int num_cores, const char* input_name) {
     }
 
     // Set total and unique words
-    if(!write_word_count(file, unique_words, num_words, unique_offset, num_offset))
-        return 0; //free_data(dicts, next, word_queue, file, NULL, num_cores);
+    if(!write_word_count(file, unique_words, num_words, count_offset))
+        return free_data(next, word_queue, file, NULL, num_cores);
 
-    // free_data(dicts, next, word_queue, file, NULL, num_cores);
+    free_data(next, word_queue, file, NULL, num_cores);
 
     return 1;
 }

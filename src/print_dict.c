@@ -12,7 +12,7 @@ char* read_str(FILE* file) {
     size_t len; // Read the length of the word
     size_t read_len = fread(&len, sizeof(len), 1, file);
 
-    if (read_len != 1) {
+    if(read_len != 1) {
         if(feof(file)) // End of file reached
             return "";
         else if(ferror(file)) // Reading error
